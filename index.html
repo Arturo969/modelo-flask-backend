@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Predicción con Modelo Local</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        input, button { padding: 10px; margin: 5px; }
+        #resultado { margin-top: 20px; font-weight: bold; padding: 10px; border: 1px solid #ccc; background-color: #f9f9f9; }
+    </style>
+</head>
+<body>
+    <h1>Modelo de Predicción Local (Flask + joblib)</h1>
+    
+    <div>
+        <label for="latitude">Latitud (ej: 40.7128):</label>
+        <input type="number" id="latitude" value="40.7128" step="any">
+    </div>
+    <div>
+        <label for="longitude">Longitud (ej: -74.0060):</label>
+        <input type="number" id="longitude" value="-74.0060" step="any">
+    </div>
+    
+    <button onclick="getPrediction()">Obtener Predicción</button>
+    
+    <div id="resultado">Esperando datos...</div>
+
+    <script>
+        async function getPrediction() {
+            const latInput = document.getElementById('latitude');
+            const lonInput = document.getElementById('longitude');
+            const resultadoDiv = document.getElementById('resultado');
+            
+            // Convertir a número con parseFloat
+            const lat = parseFloat(latInput.value);
+            const lon = parseFloat(lonInput.value);
+
+            if (isNaN(lat) || isNaN(lon)) {
+                resultadoDiv.textContent = '❌ Por favor, ingresa números válidos para Latitud y Longitud.';
+                return;
+            }
+
+            resultadoDiv.textContent = '⏱️ Enviando solicitud al servidor Flask...';
+
+            // URL del servidor Flask
+            const url = 'http://127.0.0.1:5000/predict'; 
+
+            try {
+                // Realizar la solicitud POST
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    // Enviar los datos como JSON
+                    body: JSON.stringify({
+                        latitude: lat,
+                        longitude: lon
+                    })
+                });
+
+                // Procesar la respuesta del servidor
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Muestra la predicción exitosa
+                    resultadoDiv.textContent = `✅ Predicción Exitosa: ${data.prediction.toFixed(4)}`; // Formatear a 4 decimales
+                } else {
+                    // Muestra el error del servidor (ej: error 500)
+                    resultadoDiv.textContent = `❌ Error del Servidor (${response.status}): ${data.error || 'Desconocido'}`;
+                }
+
+            } catch (error) {
+                // Muestra un error de conexión (Failed to fetch)
+                resultadoDiv.textContent = `🚨 Error de Conexión: Asegúrate de que el backend (app.py) esté corriendo. Detalles: ${error.message}`;
+                console.error('Error al conectar con Flask:', error);
+            }
+        }
+    </script>
+</body>
+</html>

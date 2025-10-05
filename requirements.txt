@@ -1,0 +1,8 @@
+Flask
+joblib
+numpy
+pandas
+os
+scikit-learn # <-- Reemplaza con el nombre de la librería principal de tu modelo
+gunicorn
+flask-cors
