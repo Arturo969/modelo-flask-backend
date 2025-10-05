@@ -1,72 +1,85 @@
-# app.py
 from flask import Flask, request, jsonify
-import joblib          # ✅ Usamos joblib para cargar modelos ML
+import joblib 
 from flask_cors import CORS 
 import numpy as np
-import os              # Usamos 'os' para manejar rutas de archivos
+import os
 
-# 1. Configuración de la aplicación
+# 1. Configuración y Archivos de Modelos
 app = Flask(__name__)
-CORS(app) # Habilita CORS para permitir peticiones del frontend
+CORS(app) 
 
-# Variable global para el modelo y nombre del archivo
-modelo = None
-MODEL_FILE = 'knn_regression_model.pkl' # <-- ¡VERIFICA Y CAMBIA ESTO por el nombre exacto de tu archivo!
+# Nombres de los archivos de modelos
+MODEL_FILE_A = 'knn_population_model.pkl' 
+MODEL_FILE_B = 'knn_regression_model.pkl' 
 
-# 2. Cargar el modelo al iniciar (CRUCIAL: solo se ejecuta una vez)
-try:
-    # Verificamos si el archivo existe en la ruta actual
-    if not os.path.exists(MODEL_FILE):
-        raise FileNotFoundError(f"El archivo '{MODEL_FILE}' no se encontró en: {os.getcwd()}")
-    
-    # Cargamos el modelo usando joblib
-    modelo = joblib.load(MODEL_FILE) 
-    
-    print(f"✅ Modelo '{MODEL_FILE}' cargado exitosamente usando joblib.")
-except FileNotFoundError as fnf_e:
-    print(f"❌ Error fatal al cargar el modelo: {fnf_e}")
-    print("Por favor, asegúrate de que el archivo del modelo esté en la misma carpeta que app.py.")
-    modelo = None # Dejamos el modelo como None para evitar errores si la carga falla.
-except Exception as e:
-    print(f"❌ Error al cargar el modelo (joblib): {e}")
-    modelo = None
+# Variables globales para los modelos
+modelo_A = None
+modelo_B = None
 
-# 3. Ruta API para la predicción
-@app.route('/predict', methods=['POST'])
-def predict():
-    # Si el modelo no se cargó, devolvemos un error 500
-    if modelo is None:
-        return jsonify({'error': 'Modelo no disponible. Revisar logs del servidor.'}), 500
+# Función utilitaria para cargar un modelo específico
+def load_model(file_path):
+    try:
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"El archivo '{file_path}' no se encontró en: {os.getcwd()}")
+        
+        model = joblib.load(file_path)
+        print(f"✅ Modelo '{file_path}' cargado exitosamente usando joblib.")
+        return model
+    except Exception as e:
+        print(f"❌ Error al cargar el modelo {file_path}: {e}")
+        return None
+
+# 2. Cargar AMBOS modelos al iniciar la aplicación
+modelo_A = load_model(MODEL_FILE_A)
+modelo_B = load_model(MODEL_FILE_B)
+
+
+# Función utilitaria para realizar la predicción
+def make_prediction(model, data):
+    """Procesa los datos y hace la predicción con el modelo dado."""
+    if model is None:
+        return {'error': 'Modelo no disponible en el servidor.'}, 500
 
     try:
-        # Obtener los datos (Latitud y Longitud) de la solicitud JSON
-        data = request.get_json(force=True)
         latitud = data.get('latitude')
         longitud = data.get('longitude')
 
         if latitud is None or longitud is None:
-            return jsonify({'error': 'Datos de entrada incompletos (requiere latitude y longitude)'}), 400
+            return {'error': 'Datos de entrada incompletos (requiere latitude y longitude)'}, 400
 
-        # **ADAPTACIÓN CLAVE:**
-        # Prepara los datos en el formato de array de NumPy, que es el esperado por scikit-learn/joblib
+        # Prepara los datos en el formato de array de NumPy
         features = np.array([[latitud, longitud]]) 
         
-        # 4. Hacer la predicción
-        prediction = modelo.predict(features)
+        # Hacer la predicción
+        prediction = model.predict(features)
         
-        # Convertir el resultado a un tipo Python estándar para JSON (ej: float, int)
-        # Usamos .item() para asegurarnos de que no sea un tipo numpy.float
+        # Convertir el resultado a un tipo Python estándar para JSON
         prediction_result = prediction[0].item() 
 
-        # 5. Devolver la predicción
-        return jsonify({'prediction': prediction_result})
+        # Devolver la predicción
+        return {'prediction': prediction_result}, 200
 
     except Exception as e:
-        # Captura errores que ocurren durante la predicción
+        # Captura errores que ocurren durante la predicción (ej. formato de datos incorrecto)
         print(f"Error durante la predicción: {e}")
-        return jsonify({'error': f'Error interno durante la predicción. Detalles: {e}'}), 500
+        return {'error': f'Error interno durante la predicción. Detalles: {e}'}, 500
 
-# 6. Ejecutar el servidor
+
+# 3. Ruta API para el Modelo A (/predict/A)
+@app.route('/predict/A', methods=['POST'])
+def predict_A():
+    data = request.get_json(force=True)
+    result, status = make_prediction(modelo_A, data)
+    return jsonify(result), status
+
+# 4. Ruta API para el Modelo B (/predict/B)
+@app.route('/predict/B', methods=['POST'])
+def predict_B():
+    data = request.get_json(force=True)
+    result, status = make_prediction(modelo_B, data)
+    return jsonify(result), status
+
+
+# 5. Ejecutar el servidor (Sólo para desarrollo local)
 if __name__ == '__main__':
-    # Usamos port=5000 por defecto
     app.run(debug=True)
